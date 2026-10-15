@@ -2,114 +2,122 @@ package haewon.nfc.server.service;
 
 import haewon.nfc.server.dto.HwResponse;
 import haewon.nfc.server.dto.TransitHistoryResponse;
+import haewon.nfc.server.entity.TransitCard;
+import haewon.nfc.server.entity.TransitTransaction;
+import haewon.nfc.server.repository.TransitCardRepository;
+import haewon.nfc.server.repository.TransitTransactionRepository;
+import jakarta.annotation.PostConstruct;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class TransitService {
     private static final String DEMO_CARD_ID = "TOUCHON-0001";
+    private static final int INITIAL_BALANCE = 10000;
     private static final int FARE = 1500;
     private static final long DUPLICATE_INTERVAL_MS = 3000;
 
-    private int balance = 10000;
-    private long lastTapTime = 0;
-    private long nextTransactionId = 1;
+    private final TransitCardRepository cardRepository;
+    private final TransitTransactionRepository transactionRepository;
 
-    private final List<TransitHistoryResponse> history =
-            new ArrayList<>();
+    public TransitService(
+            TransitCardRepository cardRepository,
+            TransitTransactionRepository transactionRepository
+    ) {
+        this.cardRepository = cardRepository;
+        this.transactionRepository = transactionRepository;
+    }
 
+    @PostConstruct
+    public void initializeDemoCard() {
+        if (!cardRepository.existsById(DEMO_CARD_ID)) {
+            cardRepository.save(
+                    new TransitCard(DEMO_CARD_ID, INITIAL_BALANCE)
+            );
+        }
+    }
+
+    @Transactional
     public synchronized HwResponse tap(String cardId) {
 
-        // 1. 등록되지 않은 카드
-        if (!DEMO_CARD_ID.equals(cardId)) {
+        TransitCard card = cardRepository.findById(cardId).orElse(null);
+
+        if (card == null) {
             return record(
-                    cardId,
-                    false,
-                    0,
-                    0,
+                    cardId, false, 0, 0,
                     "등록되지 않은 카드입니다."
             );
         }
 
         long now = System.currentTimeMillis();
 
-        // 2. 중복 승차 방지
-        if (lastTapTime > 0 &&
-                now - lastTapTime < DUPLICATE_INTERVAL_MS) {
-
+        if (card.getLastTapTime() > 0
+                && now - card.getLastTapTime() < DUPLICATE_INTERVAL_MS) {
             return record(
-                    cardId,
-                    false,
-                    0,
-                    balance,
+                    cardId, false, 0, card.getBalance(),
                     "중복 태그입니다. 잠시 후 다시 시도해주세요."
             );
         }
 
-        // 3. 잔액 부족
-        if (balance < FARE) {
+        if (card.getBalance() < FARE) {
             return record(
-                    cardId,
-                    false,
-                    0,
-                    balance,
+                    cardId, false, 0, card.getBalance(),
                     "잔액이 부족합니다."
             );
         }
 
-        // 4. 정상 승차
-        balance -= FARE;
-        lastTapTime = now;
+        card.setBalance(card.getBalance() - FARE);
+        card.setLastTapTime(now);
+
+        cardRepository.save(card);
 
         return record(
-                cardId,
-                true,
-                FARE,
-                balance,
+                cardId, true, FARE, card.getBalance(),
                 "승차 처리 완료"
         );
     }
 
-    // 거래 결과 기록 및 기존 API 응답 생성
     private HwResponse record(
             String cardId,
             boolean success,
             int fare,
-            int currentBalance,
+            int balance,
             String message
     ) {
-        TransitHistoryResponse transaction =
-                new TransitHistoryResponse(
-                        nextTransactionId++,
-                        cardId,
-                        LocalDateTime.now(),
-                        fare,
-                        currentBalance,
-                        success,
-                        message
-                );
+        TransitTransaction transaction = new TransitTransaction(
+                cardId,
+                LocalDateTime.now(),
+                fare,
+                balance,
+                success,
+                message
+        );
 
-        history.add(transaction);
+        transactionRepository.save(transaction);
 
         return new HwResponse(
-                success,
-                cardId,
-                fare,
-                currentBalance,
-                message
+                success, cardId, fare, balance, message
         );
     }
 
-    // 최근 거래부터 반환
-    public synchronized List<TransitHistoryResponse> getHistory() {
-        List<TransitHistoryResponse> result =
-                new ArrayList<>(history);
+    @Transactional(readOnly = true)
+    public List<TransitHistoryResponse> getHistory() {
 
-        java.util.Collections.reverse(result);
-
-        return result;
+        return transactionRepository
+                .findAllByOrderByTransactionIdDesc()
+                .stream()
+                .map(transaction -> new TransitHistoryResponse(
+                        transaction.getTransactionId(),
+                        transaction.getCardId(),
+                        transaction.getTimestamp(),
+                        transaction.getFare(),
+                        transaction.getBalance(),
+                        transaction.isSuccess(),
+                        transaction.getMessage()
+                ))
+                .toList();
     }
 }
