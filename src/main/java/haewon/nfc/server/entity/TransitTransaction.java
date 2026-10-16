@@ -1,10 +1,6 @@
 package haewon.nfc.server.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 
@@ -17,6 +13,9 @@ public class TransitTransaction {
     private Long transactionId; // 자동 생성되는 거래 번호
 
     private String cardId; // 태그한 카드 ID
+
+    @Column(name = "transaction_type")
+    private String transactionType;
 
     private LocalDateTime timestamp; // 처리 시각
 
@@ -33,6 +32,7 @@ public class TransitTransaction {
 
     public TransitTransaction(
             String cardId,
+            String transactionType,
             LocalDateTime timestamp,
             int fare,
             int balance,
@@ -40,6 +40,7 @@ public class TransitTransaction {
             String message
     ) {
         this.cardId = cardId;
+        this.transactionType = transactionType;
         this.timestamp = timestamp;
         this.fare = fare;
         this.balance = balance;
@@ -53,6 +54,10 @@ public class TransitTransaction {
 
     public String getCardId() {
         return cardId;
+    }
+
+    public String getTransactionType() {
+        return transactionType;
     }
 
     public LocalDateTime getTimestamp() {

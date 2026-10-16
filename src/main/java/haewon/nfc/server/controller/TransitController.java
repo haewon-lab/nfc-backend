@@ -1,8 +1,6 @@
 package haewon.nfc.server.controller;
 
-import haewon.nfc.server.dto.HwRequest;
-import haewon.nfc.server.dto.HwResponse;
-import haewon.nfc.server.dto.TransitHistoryResponse;
+import haewon.nfc.server.dto.*;
 import haewon.nfc.server.service.TransitService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -28,5 +26,15 @@ public class TransitController {
     @GetMapping("/history")
     public List<TransitHistoryResponse> history() {
         return transitService.getHistory();
+    }
+
+    @PostMapping("/charge")
+    public ChargeResponse charge(
+            @Valid @RequestBody ChargeRequest request
+    ) {
+        return transitService.charge(
+                request.cardId(),
+                request.amount()
+        );
     }
 }

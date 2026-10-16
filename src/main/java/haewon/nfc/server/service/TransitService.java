@@ -2,6 +2,7 @@ package haewon.nfc.server.service;
 
 import haewon.nfc.server.dto.HwResponse;
 import haewon.nfc.server.dto.TransitHistoryResponse;
+import haewon.nfc.server.dto.ChargeResponse;
 import haewon.nfc.server.entity.TransitCard;
 import haewon.nfc.server.entity.TransitTransaction;
 import haewon.nfc.server.repository.TransitCardRepository;
@@ -89,6 +90,7 @@ public class TransitService {
     ) {
         TransitTransaction transaction = new TransitTransaction(
                 cardId,
+                "TAP",
                 LocalDateTime.now(),
                 fare,
                 balance,
@@ -112,6 +114,7 @@ public class TransitService {
                 .map(transaction -> new TransitHistoryResponse(
                         transaction.getTransactionId(),
                         transaction.getCardId(),
+                        transaction.getTransactionType(),
                         transaction.getTimestamp(),
                         transaction.getFare(),
                         transaction.getBalance(),
@@ -119,5 +122,60 @@ public class TransitService {
                         transaction.getMessage()
                 ))
                 .toList();
+    }
+
+    @Transactional
+    public synchronized ChargeResponse charge(String cardId, int amount) {
+
+        // 충전 금액 검증
+        if (amount <= 0) {
+            return new ChargeResponse(
+                    false, cardId, 0, 0,
+                    "충전 금액은 1원 이상이어야 합니다."
+            );
+        }
+
+        // 카드 조회
+        TransitCard card = cardRepository.findById(cardId).orElse(null);
+
+        if (card == null) {
+            return new ChargeResponse(
+                    false, cardId, 0, 0,
+                    "등록되지 않은 카드입니다."
+            );
+        }
+
+        // 잔액 오버플로 방지
+        if (card.getBalance() > Integer.MAX_VALUE - amount) {
+            return new ChargeResponse(
+                    false, cardId, 0, card.getBalance(),
+                    "충전 가능한 잔액 범위를 초과했습니다."
+            );
+        }
+
+        // 잔액 충전
+        int newBalance = card.getBalance() + amount;
+
+        card.setBalance(newBalance);
+        cardRepository.save(card);
+
+        TransitTransaction transaction = new TransitTransaction(
+                cardId,
+                "CHARGE",
+                LocalDateTime.now(),
+                amount,
+                newBalance,
+                true,
+                "충전 완료"
+        );
+        transactionRepository.save(transaction);
+
+        return new ChargeResponse(
+                true,
+                cardId,
+                amount,
+                newBalance,
+                "충전 완료"
+        );
     }
 }
