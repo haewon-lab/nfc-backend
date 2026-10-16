@@ -1,5 +1,6 @@
 package haewon.nfc.server.service;
 
+import haewon.nfc.server.dto.CardBalanceResponse;
 import haewon.nfc.server.dto.HwResponse;
 import haewon.nfc.server.dto.TransitHistoryResponse;
 import haewon.nfc.server.dto.ChargeResponse;
@@ -176,6 +177,21 @@ public class TransitService {
                 amount,
                 newBalance,
                 "충전 완료"
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public CardBalanceResponse getCardBalance(String cardId) {
+
+        TransitCard card = cardRepository.findById(cardId)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND,
+                        "등록되지 않은 카드입니다."
+                ));
+
+        return new CardBalanceResponse(
+                card.getCardId(),
+                card.getBalance()
         );
     }
 }

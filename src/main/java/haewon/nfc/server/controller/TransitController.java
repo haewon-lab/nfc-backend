@@ -37,4 +37,11 @@ public class TransitController {
                 request.amount()
         );
     }
+
+    @GetMapping("/cards/{cardId}")
+    public CardBalanceResponse getCardBalance(
+            @PathVariable String cardId
+    ) {
+        return transitService.getCardBalance(cardId);
+    }
 }
