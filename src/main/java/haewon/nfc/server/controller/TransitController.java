@@ -44,4 +44,11 @@ public class TransitController {
     ) {
         return transitService.getCardBalance(cardId);
     }
+
+    @GetMapping("/cards/{cardId}/history")
+    public List<TransitHistoryResponse> getCardHistory(
+            @PathVariable String cardId
+    ) {
+        return transitService.getCardHistory(cardId);
+    }
 }

@@ -9,8 +9,10 @@ import haewon.nfc.server.entity.TransitTransaction;
 import haewon.nfc.server.repository.TransitCardRepository;
 import haewon.nfc.server.repository.TransitTransactionRepository;
 import jakarta.annotation.PostConstruct;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -193,5 +195,32 @@ public class TransitService {
                 card.getCardId(),
                 card.getBalance()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<TransitHistoryResponse> getCardHistory(String cardId) {
+
+        // 등록된 카드인지 먼저 확인
+        if (!cardRepository.existsById(cardId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "등록되지 않은 카드입니다."
+            );
+        }
+
+        return transactionRepository
+                .findByCardIdOrderByTransactionIdDesc(cardId)
+                .stream()
+                .map(transaction -> new TransitHistoryResponse(
+                        transaction.getTransactionId(),
+                        transaction.getCardId(),
+                        transaction.getTransactionType(),
+                        transaction.getTimestamp(),
+                        transaction.getFare(),
+                        transaction.getBalance(),
+                        transaction.isSuccess(),
+                        transaction.getMessage()
+                ))
+                .toList();
     }
 }
